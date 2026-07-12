@@ -19,9 +19,9 @@ GUARD_DEVICE_CONFIRMATION = 4
 POLL_TIMEOUT_SECONDS = 120
 
 ERESULT_MESSAGES = {
-    '5': 'senha inválida',
-    '84': 'muitas tentativas de login; aguarde alguns minutos',
-    '88': 'código Steam Guard incorreto',
+    '5': 'invalid password',
+    '84': 'too many login attempts; wait a few minutes',
+    '88': 'incorrect Steam Guard code',
 }
 
 
@@ -56,7 +56,7 @@ def _api_response(response) -> dict:
     eresult = response.headers.get('x-eresult', '1')
     if eresult != '1':
         detail = ERESULT_MESSAGES.get(eresult, f'EResult {eresult}')
-        raise SteamLoginError(f'Steam recusou a requisição: {detail}')
+        raise SteamLoginError(f'Steam refused the request: {detail}')
     return response.json()['response']
 
 
@@ -81,7 +81,7 @@ def _begin_auth_session(session: requests.Session, username: str, encrypted_pass
     )
     auth = _api_response(response)
     if 'client_id' not in auth:
-        raise SteamLoginError('login recusado; confira STEAM_USERNAME e STEAM_PASSWORD')
+        raise SteamLoginError('login refused; check STEAM_USERNAME and STEAM_PASSWORD')
     return auth
 
 
@@ -92,13 +92,13 @@ def _handle_steam_guard(session: requests.Session, auth: dict) -> None:
 
     if GUARD_DEVICE_CODE in confirmations or GUARD_EMAIL_CODE in confirmations:
         if GUARD_DEVICE_CODE in confirmations:
-            code_type, origem = GUARD_DEVICE_CODE, 'app Steam'
+            code_type, source = GUARD_DEVICE_CODE, 'Steam app'
         else:
-            code_type, origem = GUARD_EMAIL_CODE, 'e-mail'
+            code_type, source = GUARD_EMAIL_CODE, 'email'
         try:
-            code = input(f'Código Steam Guard ({origem}): ').strip()
+            code = input(f'Steam Guard code ({source}): ').strip()
         except EOFError:
-            raise SteamLoginError('Steam Guard pediu um código; rode em um terminal interativo') from None
+            raise SteamLoginError('Steam Guard asked for a code; run in an interactive terminal') from None
         response = session.post(
             f'{API_BASE}/UpdateAuthSessionWithSteamGuardCode/v1/',
             data={
@@ -110,9 +110,9 @@ def _handle_steam_guard(session: requests.Session, auth: dict) -> None:
         )
         _api_response(response)
     elif GUARD_DEVICE_CONFIRMATION in confirmations:
-        print('Confirme o login no app Steam do celular...')
+        print('Confirm the login in the Steam mobile app...')
     else:
-        raise SteamLoginError(f'tipo de confirmação Steam Guard não suportado: {confirmations}')
+        raise SteamLoginError(f'unsupported Steam Guard confirmation type: {confirmations}')
 
 
 def _poll_refresh_token(session: requests.Session, auth: dict) -> str:
@@ -127,7 +127,7 @@ def _poll_refresh_token(session: requests.Session, auth: dict) -> str:
         if status.get('refresh_token'):
             return status['refresh_token']
         time.sleep(interval)
-    raise SteamLoginError('tempo esgotado aguardando a confirmação do login')
+    raise SteamLoginError('timed out waiting for the login confirmation')
 
 
 def _finalize_login(session: requests.Session, refresh_token: str) -> str:

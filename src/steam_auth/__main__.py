@@ -9,10 +9,10 @@ def main() -> None:
     try:
         result = renew_session()
     except SteamLoginError as exc:
-        sys.exit(f'Falha no login: {exc}')
+        sys.exit(f'Login failed: {exc}')
 
-    status = 'válida' if is_session_valid(result.session) else 'NÃO validada'
-    print(f'Sessão {status} salva em {SESSION_FILE} (steam_id={result.steam_id})')
+    status = 'Valid' if is_session_valid(result.session) else 'UNVALIDATED'
+    print(f'{status} session saved to {SESSION_FILE} (steam_id={result.steam_id})')
 
 
 if __name__ == '__main__':

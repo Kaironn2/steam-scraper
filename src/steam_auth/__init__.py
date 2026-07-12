@@ -14,7 +14,7 @@ def renew_session() -> LoginResult:
     username = os.getenv('STEAM_USERNAME')
     password = os.getenv('STEAM_PASSWORD')
     if not username or not password:
-        raise SteamLoginError('Defina STEAM_USERNAME e STEAM_PASSWORD no .env')
+        raise SteamLoginError('Set STEAM_USERNAME and STEAM_PASSWORD in .env')
 
     result = login(username, password)
     save_session(result)
