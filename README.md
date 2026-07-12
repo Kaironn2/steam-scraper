@@ -57,6 +57,40 @@ crawl:
 uv run steam-auth
 ```
 
+### users_games
+
+Collects game info (`appid`, `name`, `achievements_total`) from the
+"All games" tab of one or more profiles. The result is the union of the
+users' libraries, deduplicated by `appid` — pass the family members'
+usernames to map the games available to a Steam Family:
+
+```bash
+uv run scrapy crawl users_games -a usernames=user1,user2,user3 -O games.json
+```
+
+Private or nonexistent profiles are logged as errors and skipped; the other
+usernames are still collected.
+
+### Language
+
+Every spider accepts `-a language=<code>` (default: `en`):
+
+```bash
+uv run scrapy crawl users_games -a usernames=user1 -a language=ptbr
+```
+
+| code   | Steam language |
+| ------ | -------------- |
+| `en`   | english        |
+| `ptbr` | brazilian      |
+
+The [`SteamLanguageMiddleware`](src/steam_scraper/middlewares.py) applies the
+language to every Steam request (via the `Steam_Language` cookie and the
+`Accept-Language` header), so spiders don't need any language-specific code —
+the `-a language=...` argument is enough. To support a new language, add an
+entry to `LANGUAGES` in
+[`src/steam_scraper/languages.py`](src/steam_scraper/languages.py).
+
 ## How it works
 
 Login is handled by the [`src/steam_auth/`](src/steam_auth/) module, which
@@ -79,7 +113,8 @@ src/
 │   ├── storage.py     # saves/loads sessions/steam.json
 │   └── __main__.py    # `steam-auth` entrypoint
 └── steam_scraper/     # Scrapy project
-    ├── middlewares.py # SteamSessionMiddleware (session injection + retry)
+    ├── middlewares.py # SteamSessionMiddleware (session) + SteamLanguageMiddleware
+    ├── languages.py   # supported languages registry (-a language=...)
     ├── settings.py
     └── spiders/       # the crawlers
 ```
