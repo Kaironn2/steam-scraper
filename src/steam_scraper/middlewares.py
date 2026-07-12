@@ -33,7 +33,7 @@ class SteamSessionMiddleware:
         self._session_version = 0
         self._domain_cookies: dict[str, dict[str, str]] = {}
         if not SESSION_FILE.exists():
-            self._renew('nenhuma sessão salva encontrada')
+            self._renew('no saved session found')
 
     def process_request(self, request: Request, spider) -> None:
         host = urlsplit(request.url).netloc
@@ -52,15 +52,15 @@ class SteamSessionMiddleware:
             return response
 
         if request.meta.get('steam_session_version') == self._session_version:
-            self._renew(f'{response.status} em {request.url}')
+            self._renew(f'{response.status} at {request.url}')
 
         retries = request.meta.get('steam_session_retries', 0) + 1
         request.meta['steam_session_retries'] = retries
-        logger.info('Repetindo %s com a nova sessão (tentativa %d)', request.url, retries)
+        logger.info('Retrying %s with the new session (attempt %d)', request.url, retries)
         return request.replace(dont_filter=True)
 
     def _renew(self, reason: str) -> None:
-        logger.info('Refazendo a sessão Steam (%s)...', reason)
+        logger.info('Renewing the Steam session (%s)...', reason)
         renew_session()
         self._domain_cookies.clear()
         self._session_version += 1
