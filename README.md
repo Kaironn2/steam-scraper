@@ -71,6 +71,25 @@ uv run scrapy crawl users_games -a usernames=user1,user2,user3 -O games.json
 Private or nonexistent profiles are logged as errors and skipped; the other
 usernames are still collected.
 
+### user_achievements
+
+Collects every achievement of one user — locked ones included — for each game
+in a `users_games` output file:
+
+```bash
+uv run scrapy crawl user_achievements -a username=user1 -a games_file=games.json -O achievements.json
+```
+
+Each item carries the game (`appid`, `game`), the achievement (`title`,
+`description`), the unlock state (`unlocked`, `unlock_time` as ISO 8601) and,
+for progress-tracked achievements, `progress_current`/`progress_total`.
+
+- Games with `achievements_total: 0` are skipped; games without an
+  achievements page (never played) are logged and skipped.
+- Locked **hidden** achievements cannot be collected individually: Steam only
+  shows them aggregated in a "+N hidden achievements remaining" row. The
+  spider logs how many were omitted per game.
+
 ### Language
 
 Every spider accepts `-a language=<code>` (default: `en`):
