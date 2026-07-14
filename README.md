@@ -71,6 +71,28 @@ uv run scrapy crawl users_games -a usernames=user1,user2,user3 -O games.json
 Private or nonexistent profiles are logged as errors and skipped; the other
 usernames are still collected.
 
+### user_achievements
+
+Collects every achievement of one user — locked ones included — for each game
+in a `users_games` output file:
+
+```bash
+uv run scrapy crawl user_achievements -a username=user1 -a games_file=games.json -O achievements.json
+```
+
+Each item is one game of the user (`username`, `appid`, `game`,
+`achievements_total`) with the game's achievements nested in `achievements`:
+`title`, `description`, the unlock state (`unlocked`, `unlock_time` as
+ISO 8601) and, for progress-tracked achievements,
+`progress_current`/`progress_total`.
+
+- Games with `achievements_total: 0` are skipped; games without an
+  achievements page (never played) are logged and skipped.
+- Locked **hidden** achievements cannot be collected individually: Steam only
+  shows them aggregated in a "+N hidden achievements remaining" row. The
+  spider logs how many were omitted per game — they explain any gap between
+  `achievements_total` and the size of `achievements`.
+
 ### Language
 
 Every spider accepts `-a language=<code>` (default: `en`):
@@ -108,6 +130,8 @@ to the spider.
 
 ```
 src/
+├── core/              # shared application core
+│   └── config.py      # settings loaded from .env via pydantic-settings
 ├── steam_auth/        # login via curl-cffi + session persistence
 │   ├── login.py       # IAuthenticationService flow
 │   ├── storage.py     # saves/loads sessions/steam.json
