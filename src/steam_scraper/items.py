@@ -10,13 +10,18 @@ class Game(BaseModel):
 
 
 class Achievement(BaseModel):
-    username: str
-    appid: int
-    game: str
     title: str
     description: str | None
     unlocked: bool
     unlock_time: str | None
     progress_current: int | None
     progress_total: int | None
+
+
+class GameAchievements(BaseModel):
+    username: str
+    appid: int
+    game: str
+    achievements_total: int | None
     language: str
+    achievements: list[Achievement]

@@ -2,9 +2,10 @@
 
 Receives a username and the JSON produced by the users_games spider, visits
 the profile's achievements page of each game that has achievements and yields
-one item per achievement, locked ones included. Locked *hidden* achievements
-can't be collected individually — Steam only shows them aggregated in a
-"+N hidden achievements remaining" row; the spider logs how many were omitted.
+one item per game with its achievements nested, locked ones included. Locked
+*hidden* achievements can't be collected individually — Steam only shows them
+aggregated in a "+N hidden achievements remaining" row; the spider logs how
+many were omitted.
 
 Usage:
     uv run scrapy crawl user_achievements -a username=user1 -a games_file=games.json -O achievements.json
@@ -21,7 +22,7 @@ import scrapy
 from pydantic import TypeAdapter
 from scrapy.http import Response
 
-from steam_scraper.items import Achievement, Game
+from steam_scraper.items import Achievement, Game, GameAchievements
 from steam_scraper.languages import DEFAULT_LANGUAGE, resolve_language
 
 # "21 Dec, 2024 @ 8:08pm" / "12 Jul @ 1:23pm" (en) — "21/dez./2024 às 20:08" / "20 de jan. às 5:45" (ptbr).
@@ -99,8 +100,8 @@ class UserAchievementsSpider(scrapy.Spider):
                 self.logger.warning('%s: no achievements page at %s (never played?)', game.name, response.url)
             return
 
-        language = resolve_language(getattr(self, 'language', DEFAULT_LANGUAGE)).code
         hidden = 0
+        achievements: list[Achievement] = []
         for row in rows:
             hidden_box = row.xpath('./div[@class="achieveHiddenBox"]/span/text()').get()
             if hidden_box is not None:
@@ -119,21 +120,28 @@ class UserAchievementsSpider(scrapy.Spider):
                 row.xpath('.//div[contains(@class, "progressText")]/text()').get()
             )
 
-            yield Achievement(
-                username=self.username,
-                appid=game.appid,
-                game=game.name,
-                title=title,
-                description=_normalize(row.xpath('.//div[contains(@class, "achieveTxt")]/h5/text()').get()),
-                unlocked=unlock_text is not None,
-                unlock_time=self._parse_unlock_time(unlock_text),
-                progress_current=progress_current,
-                progress_total=progress_total,
-                language=language,
+            achievements.append(
+                Achievement(
+                    title=title,
+                    description=_normalize(row.xpath('.//div[contains(@class, "achieveTxt")]/h5/text()').get()),
+                    unlocked=unlock_text is not None,
+                    unlock_time=self._parse_unlock_time(unlock_text),
+                    progress_current=progress_current,
+                    progress_total=progress_total,
+                )
             )
 
         if hidden:
             self.logger.info('%s: %d locked hidden achievements are not listed by Steam', game.name, hidden)
+
+        yield GameAchievements(
+            username=self.username,
+            appid=game.appid,
+            game=game.name,
+            achievements_total=game.achievements_total,
+            language=resolve_language(getattr(self, 'language', DEFAULT_LANGUAGE)).code,
+            achievements=achievements,
+        )
 
     def _parse_unlock_time(self, text: str | None) -> str | None:
         """The unlock time as ISO 8601: 'Unlocked 21 Dec, 2024 @ 8:08pm' -> '2024-12-21T20:08:00'."""
