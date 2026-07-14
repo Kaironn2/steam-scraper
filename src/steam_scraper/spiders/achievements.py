@@ -11,7 +11,6 @@ Usage:
     uv run scrapy crawl user_achievements -a username=user1 -a games_file=games.json -a language=ptbr
 """
 
-import json
 import re
 from collections.abc import AsyncIterator, Generator
 from datetime import datetime
@@ -19,9 +18,10 @@ from pathlib import Path
 from typing import Any
 
 import scrapy
+from pydantic import TypeAdapter
 from scrapy.http import Response
 
-from steam_scraper.items import Achievement
+from steam_scraper.items import Achievement, Game
 from steam_scraper.languages import DEFAULT_LANGUAGE, resolve_language
 
 # "21 Dec, 2024 @ 8:08pm" / "12 Jul @ 1:23pm" (en) — "21/dez./2024 às 20:08" / "20 de jan. às 5:45" (ptbr).
@@ -73,21 +73,21 @@ class UserAchievementsSpider(scrapy.Spider):
                 'scrapy crawl user_achievements -a username=user1 -a games_file=games.json'
             )
         self.username = username
-        self.games: list[dict[str, Any]] = json.loads(Path(games_file).read_text(encoding='utf-8'))
+        self.games: list[Game] = TypeAdapter(list[Game]).validate_json(Path(games_file).read_bytes())
         self._warned_unlock_format = False
 
     async def start(self) -> AsyncIterator[Any]:
-        games = [game for game in self.games if game.get('achievements_total') != 0]
+        games = [game for game in self.games if game.achievements_total != 0]
         self.logger.info('%d of %d games have achievements', len(games), len(self.games))
 
         for game in games:
             yield scrapy.Request(
-                url=f'https://steamcommunity.com/id/{self.username}/stats/{game["appid"]}/?tab=achievements',
+                url=f'https://steamcommunity.com/id/{self.username}/stats/{game.appid}/?tab=achievements',
                 callback=self.parse,
                 cb_kwargs={'game': game},
             )
 
-    def parse(self, response: Response, game: dict[str, Any]) -> Generator[Any, Any, None]:
+    def parse(self, response: Response, game: Game) -> Generator[Any, Any, None]:
         rows = response.xpath('//div[contains(@class, "achieveRow")]')
         if not rows:
             request = response.request
@@ -96,7 +96,7 @@ class UserAchievementsSpider(scrapy.Spider):
                 # /stats/CSGO) dropping the query string; ask for the tab again.
                 yield request.replace(url=response.urljoin('?tab=achievements'))
             else:
-                self.logger.warning('%s: no achievements page at %s (never played?)', game['name'], response.url)
+                self.logger.warning('%s: no achievements page at %s (never played?)', game.name, response.url)
             return
 
         language = resolve_language(getattr(self, 'language', DEFAULT_LANGUAGE)).code
@@ -108,6 +108,12 @@ class UserAchievementsSpider(scrapy.Spider):
                 hidden += int(re.sub(r'\D', '', hidden_box) or 0)
                 continue
 
+            # contains(): rows with a progress bar use class="achieveTxt withProgress"
+            title = _normalize(row.xpath('.//div[contains(@class, "achieveTxt")]/h3/text()').get())
+            if title is None:
+                self.logger.error('%s: achievement row without title at %s, skipping', game.name, response.url)
+                continue
+
             unlock_text = row.xpath('.//div[@class="achieveUnlockTime"]/text()').get()
             progress_current, progress_total = _parse_progress(
                 row.xpath('.//div[contains(@class, "progressText")]/text()').get()
@@ -115,10 +121,9 @@ class UserAchievementsSpider(scrapy.Spider):
 
             yield Achievement(
                 username=self.username,
-                appid=game['appid'],
-                game=game.get('name'),
-                # contains(): rows with a progress bar use class="achieveTxt withProgress"
-                title=_normalize(row.xpath('.//div[contains(@class, "achieveTxt")]/h3/text()').get()),
+                appid=game.appid,
+                game=game.name,
+                title=title,
                 description=_normalize(row.xpath('.//div[contains(@class, "achieveTxt")]/h5/text()').get()),
                 unlocked=unlock_text is not None,
                 unlock_time=self._parse_unlock_time(unlock_text),
@@ -128,7 +133,7 @@ class UserAchievementsSpider(scrapy.Spider):
             )
 
         if hidden:
-            self.logger.info('%s: %d locked hidden achievements are not listed by Steam', game['name'], hidden)
+            self.logger.info('%s: %d locked hidden achievements are not listed by Steam', game.name, hidden)
 
     def _parse_unlock_time(self, text: str | None) -> str | None:
         """The unlock time as ISO 8601: 'Unlocked 21 Dec, 2024 @ 8:08pm' -> '2024-12-21T20:08:00'."""

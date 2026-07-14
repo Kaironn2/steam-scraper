@@ -1,22 +1,22 @@
-"""Project items — https://docs.scrapy.org/en/latest/topics/items.html"""
+"""Project items, as pydantic models — validated when the spiders build them."""
 
-import scrapy
-
-
-class Game(scrapy.Item):
-    appid = scrapy.Field()
-    name = scrapy.Field()
-    achievements_total = scrapy.Field()
+from pydantic import BaseModel
 
 
-class Achievement(scrapy.Item):
-    username = scrapy.Field()
-    appid = scrapy.Field()
-    game = scrapy.Field()
-    title = scrapy.Field()
-    description = scrapy.Field()
-    unlocked = scrapy.Field()
-    unlock_time = scrapy.Field()
-    progress_current = scrapy.Field()
-    progress_total = scrapy.Field()
-    language = scrapy.Field()
+class Game(BaseModel):
+    appid: int
+    name: str
+    achievements_total: int | None = None
+
+
+class Achievement(BaseModel):
+    username: str
+    appid: int
+    game: str
+    title: str
+    description: str | None
+    unlocked: bool
+    unlock_time: str | None
+    progress_current: int | None
+    progress_total: int | None
+    language: str
