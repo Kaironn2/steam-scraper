@@ -79,9 +79,15 @@ class SteamSessionMiddleware:
     def _is_auth_failure(response: Response) -> bool:
         if response.status == 401:
             return True
+
         if response.status in REDIRECT_STATUSES:
-            location = response.headers.get('Location') or b''
-            return urlsplit(location.decode()).path.startswith('/login')
+            # An expired steamLoginSecure redirects to login.steampowered.com/jwt/refresh;
+            # following it would leave the Steam domains and loop through the login flow.
+            target = urlsplit((response.headers.get('Location') or b'').decode())
+            return target.path.startswith('/login') or (
+                target.netloc == 'login.steampowered.com' and target.path.startswith('/jwt/')
+            )
+
         return False
 
 
