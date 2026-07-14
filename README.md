@@ -127,6 +127,8 @@ to the spider.
 
 ```
 src/
+├── core/              # shared application core
+│   └── config.py      # settings loaded from .env via pydantic-settings
 ├── steam_auth/        # login via curl-cffi + session persistence
 │   ├── login.py       # IAuthenticationService flow
 │   ├── storage.py     # saves/loads sessions/steam.json
